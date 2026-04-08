@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宠物库 - 宠物归家系统</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="pets">
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="/">宠物归家系统</a>
+      <nav class="site-nav">
+        <a href="/">首页</a>
+        <a href="/auth">账户中心</a>
+        <a href="/publish">宠物发布</a>
+        <a href="/pets">宠物库</a>
+        <a href="/admin">审核后台</a>
+      </nav>
+      <div id="globalUser" class="global-user">未登录</div>
+    </header>
+
+    <main class="page-wrap">
+      <section class="panel">
+        <div class="panel-title">
+          <h2>宠物库</h2>
+          <p>浏览宠物档案，评论互动，提交救治/领养/认领联系</p>
+        </div>
+        <form id="filterForm" class="toolbar">
+          <input name="keyword" placeholder="搜索名称/地点/描述">
+          <select name="category">
+            <option value="">全部分类</option>
+            <option value="犬类">犬类</option>
+            <option value="猫类">猫类</option>
+            <option value="鸟类">鸟类</option>
+            <option value="小型宠物">小型宠物</option>
+            <option value="其他">其他</option>
+          </select>
+          <select name="state">
+            <option value="">全部状态</option>
+            <option value="待寻主">待寻主</option>
+            <option value="需救治">需救治</option>
+            <option value="待领养">待领养</option>
+            <option value="已归家">已归家</option>
+          </select>
+          <button type="submit">筛选</button>
+        </form>
+        <div id="petList" class="pet-list empty">暂无宠物档案</div>
+      </section>
+    </main>
+
+    <template id="petCardTemplate">
+      <article class="pet-card">
+        <img class="pet-image" alt="宠物图片">
+        <div class="pet-body">
+          <div class="pet-head">
+            <div><h3 class="pet-name"></h3><p class="pet-subtitle"></p></div>
+            <span class="pill pet-state"></span>
+          </div>
+          <p class="pet-description"></p>
+          <div class="pill-row">
+            <span class="pill category-pill"></span>
+            <span class="pill creator-pill"></span>
+            <span class="pill comment-pill"></span>
+          </div>
+          <div class="recognition-box"></div>
+          <div class="detail-columns">
+            <div class="detail-panel">
+              <h4>评论区</h4>
+              <div class="comment-list"></div>
+              <form class="comment-form compact-form">
+                <textarea name="content" placeholder="输入评论内容"></textarea>
+                <button type="submit">发布评论</button>
+              </form>
+            </div>
+            <div class="detail-panel">
+              <h4>救治/领养/认领联系</h4>
+              <div class="contact-list"></div>
+              <form class="contact-form compact-form">
+                <select name="contact_type">
+                  <option value="rescue">救治联系</option>
+                  <option value="adoption">领养申请</option>
+                  <option value="claim">认领联系</option>
+                </select>
+                <input name="phone" placeholder="联系电话">
+                <textarea name="message" placeholder="留言说明"></textarea>
+                <button type="submit">提交联系</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </article>
+    </template>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
