@@ -62,6 +62,35 @@ async function restoreSession() {
   renderGlobalUser();
 }
 
+function formatRecognitionCard(recognition) {
+  if (!recognition) return "尚未识别";
+  const yolo = recognition.yolo || {};
+  const sourceLabelMap = {
+    yolo: "YOLO",
+    rule: "规则",
+    manual: "人工选择",
+  };
+  const categoryLabel = recognition.recognized_category_label || recognition.recognized_category || "待确认";
+  const stateLabel = recognition.recognized_state_label || recognition.recognized_state || "待确认";
+  const notes = (recognition.notes || []).length ? recognition.notes.join("；") : "无";
+  const recommendations = (recognition.recommendations || []).length ? recognition.recommendations.join("；") : "无";
+  const detections = (yolo.detections || []).length
+    ? yolo.detections
+        .slice(0, 4)
+        .map((item) => `${item.label || item.model_label} ${Number(item.confidence).toFixed(2)}`)
+        .join("；")
+    : "无";
+  return `
+    自动分类：${categoryLabel}（${recognition.category_confidence}）<br>
+    分类来源：${sourceLabelMap[recognition.category_source] || recognition.category_source || "未知"}<br>
+    自动状态：${stateLabel}（${recognition.state_confidence}）<br>
+    YOLO 状态：${yolo.status || "skipped"}${yolo.model ? ` / ${yolo.model}` : ""}<br>
+    检测结果：${detections}<br>
+    识别说明：${notes}<br>
+    建议：${recommendations}
+  `;
+}
+
 function formatRecognition(recognition) {
   if (!recognition) return "尚未识别";
   return `
@@ -256,6 +285,41 @@ async function loadImageToCanvas(source, canvas, rawPreview, processedPreview, v
   visionMetrics.textContent = JSON.stringify(state.visionReport, null, 2);
 }
 
+function selectDetectedCategory(categorySelect, categoryKey) {
+  const optionIndexByKey = {
+    dog: 1,
+    cat: 2,
+    bird: 3,
+    other: 5,
+  };
+  const optionIndex = optionIndexByKey[categoryKey];
+  if (typeof optionIndex !== "number" || !categorySelect.options[optionIndex]) return;
+  categorySelect.selectedIndex = optionIndex;
+}
+
+async function analyzeUploadedImage(recognitionCard, processedPreview, categorySelect) {
+  if (!state.rawImage) return;
+  recognitionCard.classList.remove("hidden");
+  recognitionCard.innerHTML = "YOLO 识别中...";
+  categorySelect.selectedIndex = 0;
+
+  try {
+    const data = await apiFetch("/api/pets/analyze", {
+      method: "POST",
+      body: JSON.stringify({ image_data_url: state.rawImage }),
+    });
+    if (data.category_key) {
+      selectDetectedCategory(categorySelect, data.category_key);
+    }
+    if (data.processed_image_path) {
+      processedPreview.src = `${API_BASE}${data.processed_image_path}`;
+    }
+    recognitionCard.innerHTML = formatRecognitionCard(data.recognition);
+  } catch (error) {
+    recognitionCard.innerHTML = `YOLO 识别失败：${error.message}`;
+  }
+}
+
 function initPublishPage() {
   const startCameraBtn = $("#startCameraBtn");
   const captureBtn = $("#captureBtn");
@@ -267,6 +331,16 @@ function initPublishPage() {
   const visionMetrics = $("#visionMetrics");
   const petForm = $("#petForm");
   const recognitionCard = $("#recognitionCard");
+  const manualCategorySelect = $("#manualCategorySelect");
+  const previewGrid = $(".image-preview-grid");
+  const metricsCard = $(".preview-card.metrics");
+
+  if (previewGrid && recognitionCard && !previewGrid.contains(recognitionCard)) {
+    previewGrid.appendChild(recognitionCard);
+  }
+  if (metricsCard) {
+    metricsCard.remove();
+  }
 
   startCameraBtn.addEventListener("click", async () => {
     if (state.cameraStream) return;
@@ -289,13 +363,17 @@ function initPublishPage() {
     captureCanvas.height = height;
     captureCanvas.getContext("2d").drawImage(cameraPreview, 0, 0, width, height);
     await loadImageToCanvas(captureCanvas.toDataURL("image/jpeg", 0.9), captureCanvas, rawPreview, processedPreview, visionMetrics);
+    await analyzeUploadedImage(recognitionCard, processedPreview, manualCategorySelect);
   });
 
   imageFileInput.addEventListener("change", (event) => {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => loadImageToCanvas(reader.result, captureCanvas, rawPreview, processedPreview, visionMetrics);
+    reader.onload = async () => {
+      await loadImageToCanvas(reader.result, captureCanvas, rawPreview, processedPreview, visionMetrics);
+      await analyzeUploadedImage(recognitionCard, processedPreview, manualCategorySelect);
+    };
     reader.readAsDataURL(file);
   });
 
@@ -314,7 +392,10 @@ function initPublishPage() {
       const data = await apiFetch("/api/pets", { method: "POST", body: JSON.stringify(payload) });
       petForm.reset();
       recognitionCard.classList.remove("hidden");
-      recognitionCard.innerHTML = formatRecognition(data.recognition);
+      recognitionCard.innerHTML = formatRecognitionCard(data.recognition);
+      if (data.processed_image_path) {
+        processedPreview.src = `${API_BASE}${data.processed_image_path}`;
+      }
       notify(data.message);
     } catch (error) {
       notify(error.message);
@@ -343,11 +424,15 @@ async function renderPetList(pets) {
     fragment.querySelector(".pet-name").textContent = pet.name;
     fragment.querySelector(".pet-subtitle").textContent = `${pet.breed || "未填写品种"} · ${pet.found_location || "地点待补充"} · ${pet.created_at}`;
     fragment.querySelector(".pet-description").textContent = pet.description || "暂无描述";
-    fragment.querySelector(".pet-state").textContent = pet.recognized_state || pet.status;
+    fragment.querySelector(".pet-state").textContent = pet.recognized_state_label || pet.recognized_state || pet.status;
+    fragment.querySelector(".category-pill").dataset.labelOverride = pet.recognized_category_label || "";
     fragment.querySelector(".category-pill").textContent = pet.recognized_category || pet.manual_category || "未分类";
     fragment.querySelector(".creator-pill").textContent = `发布人：${pet.creator_name}`;
     fragment.querySelector(".comment-pill").textContent = `评论 ${pet.comment_count || 0}`;
-    fragment.querySelector(".recognition-box").innerHTML = formatRecognition(pet.recognition);
+    if (fragment.querySelector(".category-pill").dataset.labelOverride) {
+      fragment.querySelector(".category-pill").textContent = fragment.querySelector(".category-pill").dataset.labelOverride;
+    }
+    fragment.querySelector(".recognition-box").innerHTML = formatRecognitionCard(pet.recognition);
 
     const commentList = fragment.querySelector(".comment-list");
     const contactList = fragment.querySelector(".contact-list");

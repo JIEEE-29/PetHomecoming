@@ -239,6 +239,12 @@ button,
 .file-input input { display: none; }
 
 .preview-card { min-height: 220px; }
+.image-preview-grid .info-card {
+  min-height: 220px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
 .preview-card img {
   width: 100%;
   height: 170px;

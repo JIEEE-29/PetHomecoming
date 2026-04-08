@@ -1,6 +1,8 @@
 import base64
+import io
 import json
 import mimetypes
+import os
 import secrets
 import sqlite3
 from datetime import datetime
@@ -9,11 +11,37 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from PIL import Image, ImageDraw, ImageFont
+
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
+MODELS_DIR = BASE_DIR / "models"
 DB_PATH = BASE_DIR / "pet_homecoming.db"
 HOST = "127.0.0.1"
 PORT = 8000
+YOLO_CLASS_MAP = {
+    "dog": "鐘被",
+    "cat": "鐚被",
+    "bird": "楦熺被",
+}
+YOLO_LABELS = {
+    "dog": "犬类",
+    "cat": "猫类",
+    "bird": "鸟类",
+}
+CATEGORY_LABELS = {
+    "閻橆剛琚?": "犬类",
+    "閻氼偆琚?": "猫类",
+    "妤︾喓琚?": "鸟类",
+    "灏忓瀷瀹犵墿": "小型宠物",
+    "寰呬汉宸ョ‘璁?": "待人工确认",
+}
+YOLO_RUNTIME = {
+    "attempted": False,
+    "model": None,
+    "source": os.environ.get("PET_HOME_YOLO_MODEL") or str(MODELS_DIR / "yolov8n.pt"),
+    "error": "",
+}
 
 
 def now() -> str:
@@ -48,10 +76,196 @@ def save_image(data_url: str, prefix: str) -> str | None:
     if not data_url:
         return None
     extension, raw = parse_data_url(data_url)
+    return save_binary_file(raw, prefix, extension)
+
+
+def save_binary_file(raw: bytes, prefix: str, extension: str = ".jpg") -> str:
     file_name = f"{prefix}_{secrets.token_hex(8)}{extension}"
     target = UPLOAD_DIR / file_name
     target.write_bytes(raw)
     return f"/uploads/{file_name}"
+
+
+def load_yolo_model():
+    if YOLO_RUNTIME["attempted"]:
+        return YOLO_RUNTIME["model"]
+
+    YOLO_RUNTIME["attempted"] = True
+    model_source = Path(YOLO_RUNTIME["source"])
+    source = str(model_source)
+
+    try:
+        from ultralytics import YOLO
+
+        if model_source.exists():
+            YOLO_RUNTIME["model"] = YOLO(source)
+        else:
+            previous_cwd = Path.cwd()
+            os.chdir(model_source.parent)
+            try:
+                YOLO_RUNTIME["model"] = YOLO(model_source.name)
+            finally:
+                os.chdir(previous_cwd)
+        YOLO_RUNTIME["source"] = source
+        YOLO_RUNTIME["error"] = ""
+    except Exception as error:
+        YOLO_RUNTIME["model"] = None
+        YOLO_RUNTIME["error"] = str(error)
+
+    return YOLO_RUNTIME["model"]
+
+
+def build_yolo_overlay(image: Image.Image, detections: list[dict]) -> bytes:
+    canvas = image.copy().convert("RGB")
+    draw = ImageDraw.Draw(canvas)
+    font = ImageFont.load_default()
+
+    for detection in detections:
+        left, top, right, bottom = detection["bbox"]
+        label = f"{detection['model_label']} {detection['confidence']:.2f}"
+        draw.rectangle((left, top, right, bottom), outline="#ff7a00", width=4)
+        text_box = draw.textbbox((left, top), label, font=font)
+        box_left, box_top, box_right, box_bottom = text_box
+        badge_top = max(0, top - (box_bottom - box_top) - 8)
+        badge = (left, badge_top, left + (box_right - box_left) + 12, badge_top + (box_bottom - box_top) + 8)
+        draw.rectangle(badge, fill="#ff7a00")
+        draw.text((badge[0] + 6, badge[1] + 4), label, fill="white", font=font)
+
+    buffer = io.BytesIO()
+    canvas.save(buffer, format="JPEG", quality=90)
+    return buffer.getvalue()
+
+
+def detect_with_yolo(image_bytes: bytes) -> dict:
+    payload = {
+        "provider": "ultralytics",
+        "model": "",
+        "status": "skipped",
+        "error": "",
+        "detections": [],
+        "annotated_image_path": None,
+    }
+
+    if not image_bytes:
+        return payload
+
+    model = load_yolo_model()
+    payload["model"] = Path(str(YOLO_RUNTIME["source"])).name
+    if not model:
+        payload["status"] = "unavailable"
+        payload["error"] = YOLO_RUNTIME["error"] or "YOLO model is unavailable"
+        return payload
+
+    try:
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        result = model(image, verbose=False, conf=0.25, classes=[14, 15, 16], imgsz=960)[0]
+        names = result.names
+        detections: list[dict] = []
+
+        for box in result.boxes or []:
+            class_id = int(box.cls[0].item())
+            confidence = round(float(box.conf[0].item()), 4)
+            model_label = names[class_id] if isinstance(names, list) else names.get(class_id, str(class_id))
+            model_label = str(model_label).lower()
+            if model_label not in YOLO_CLASS_MAP:
+                continue
+
+            detections.append(
+                {
+                    "model_label": model_label,
+                    "category": YOLO_CLASS_MAP[model_label],
+                    "label": YOLO_LABELS.get(model_label, model_label),
+                    "confidence": confidence,
+                    "bbox": [round(float(value), 2) for value in box.xyxy[0].tolist()],
+                }
+            )
+
+        detections.sort(key=lambda item: item["confidence"], reverse=True)
+        payload["detections"] = detections
+
+        if detections:
+            overlay = build_yolo_overlay(image, detections)
+            payload["annotated_image_path"] = save_binary_file(overlay, "pet_yolo", ".jpg")
+            payload["status"] = "detected"
+        else:
+            payload["status"] = "no_target"
+    except Exception as error:
+        payload["status"] = "error"
+        payload["error"] = str(error)
+
+    return payload
+
+
+def build_instant_recognition(yolo_result: dict) -> tuple[dict, str]:
+    detections = yolo_result.get("detections") or []
+    if detections:
+        top_detection = detections[0]
+        recognition = {
+            "recognized_category": top_detection.get("category", ""),
+            "recognized_category_label": top_detection.get("label", top_detection.get("model_label", "")),
+            "recognized_state": "",
+            "recognized_state_label": "待填写",
+            "category_confidence": round(float(top_detection.get("confidence", 0)), 2),
+            "state_confidence": 0,
+            "category_source": "yolo",
+            "notes": [
+                "本地上传后已完成 YOLO 即时识别。",
+                f"检测结果：{top_detection.get('label', top_detection.get('model_label', 'unknown'))}",
+            ],
+            "recommendations": ["请继续补全名称、状态、联系电话等信息后再提交。"],
+            "yolo": {
+                "provider": yolo_result.get("provider", "ultralytics"),
+                "model": yolo_result.get("model", ""),
+                "status": yolo_result.get("status", "skipped"),
+                "error": yolo_result.get("error", ""),
+                "detections": detections,
+                "annotated_image_path": yolo_result.get("annotated_image_path"),
+            },
+        }
+        return recognition, top_detection.get("model_label", "")
+
+    if yolo_result.get("status") == "no_target":
+        recognition = {
+            "recognized_category": "other",
+            "recognized_category_label": "其他",
+            "recognized_state": "",
+            "recognized_state_label": "待填写",
+            "category_confidence": 0,
+            "state_confidence": 0,
+            "category_source": "yolo",
+            "notes": ["YOLO 未检测到猫、狗或鸟，已归入“其他”。"],
+            "recommendations": ["如果识别不对，可以手动改分类，再补全其余信息后提交。"],
+            "yolo": {
+                "provider": yolo_result.get("provider", "ultralytics"),
+                "model": yolo_result.get("model", ""),
+                "status": yolo_result.get("status", "no_target"),
+                "error": yolo_result.get("error", ""),
+                "detections": [],
+                "annotated_image_path": yolo_result.get("annotated_image_path"),
+            },
+        }
+        return recognition, "other"
+
+    recognition = {
+        "recognized_category": "",
+        "recognized_category_label": "",
+        "recognized_state": "",
+        "recognized_state_label": "待填写",
+        "category_confidence": 0,
+        "state_confidence": 0,
+        "category_source": "yolo",
+        "notes": [f"YOLO 即时识别失败：{yolo_result.get('error', 'unknown error')}"],
+        "recommendations": ["请稍后重试，或手动选择分类后继续填写。"],
+        "yolo": {
+            "provider": yolo_result.get("provider", "ultralytics"),
+            "model": yolo_result.get("model", ""),
+            "status": yolo_result.get("status", "error"),
+            "error": yolo_result.get("error", ""),
+            "detections": detections,
+            "annotated_image_path": yolo_result.get("annotated_image_path"),
+        },
+    }
+    return recognition, ""
 
 
 def classify_type(name: str, description: str, hint: str, manual: str) -> tuple[str, float]:
@@ -106,7 +320,7 @@ def classify_state(description: str, health: str, status: str, vision: dict | No
     return state, notes, max(0.35, min(score, 0.95))
 
 
-def build_recognition(payload: dict) -> dict:
+def build_recognition(payload: dict, yolo_result: dict | None = None) -> dict:
     category, category_confidence = classify_type(
         payload.get("name", ""),
         payload.get("description", ""),
@@ -127,13 +341,49 @@ def build_recognition(payload: dict) -> dict:
         recommendations.insert(0, "建议优先联系救治人员并记录伤情。")
     if state == "待领养":
         recommendations.insert(0, "建议补充疫苗、绝育和性格信息。")
+    yolo_result = yolo_result or {}
+    detections = yolo_result.get("detections") or []
+    category_source = "rule"
+    category_label = CATEGORY_LABELS.get(category, category)
+    state_label = state
+    if detections:
+        top_detection = detections[0]
+        category = top_detection["category"]
+        category_confidence = top_detection["confidence"]
+        category_source = "yolo"
+        category_label = top_detection.get("label", CATEGORY_LABELS.get(category, category))
+        detection_summary = "；".join(
+            f"{item.get('label', item['model_label'])} {item['confidence']:.2f}" for item in detections[:3]
+        )
+        notes.insert(0, f"YOLO 检测结果: {detection_summary}")
+        if len(detections) > 1:
+            recommendations.insert(0, "检测到多个候选目标，建议人工确认主目标。")
+    elif yolo_result.get("status") == "no_target":
+        notes.append("YOLO 未检测到猫、狗或鸟，已回退到规则识别。")
+        recommendations.append("请上传包含宠物主体的正面或全身照片。")
+    elif yolo_result.get("status") == "unavailable":
+        notes.append("YOLO 当前不可用，已回退到规则识别。")
+    elif yolo_result.get("status") == "error":
+        notes.append(f"YOLO 推理失败，已回退到规则识别: {yolo_result.get('error', 'unknown error')}")
+
     return {
         "recognized_category": category,
+        "recognized_category_label": category_label,
         "recognized_state": state,
+        "recognized_state_label": state_label,
         "category_confidence": round(category_confidence, 2),
         "state_confidence": round(state_confidence, 2),
+        "category_source": category_source,
         "notes": notes,
         "recommendations": recommendations,
+        "yolo": {
+            "provider": yolo_result.get("provider", "ultralytics"),
+            "model": yolo_result.get("model", ""),
+            "status": yolo_result.get("status", "skipped"),
+            "error": yolo_result.get("error", ""),
+            "detections": detections,
+            "annotated_image_path": yolo_result.get("annotated_image_path"),
+        },
     }
 
 
@@ -539,6 +789,30 @@ class ApiHandler(BaseHTTPRequestHandler):
             self.write_json(200, {"message": "已退出登录。"})
             return
 
+        if path == "/api/pets/analyze":
+            payload = self.read_json()
+            image_data_url = payload.get("image_data_url", "")
+            if not image_data_url:
+                self.write_json(400, {"error": "请先上传图片。"})
+                return
+            try:
+                _, raw_bytes = parse_data_url(image_data_url)
+            except ValueError as error:
+                self.write_json(400, {"error": str(error)})
+                return
+
+            yolo_result = detect_with_yolo(raw_bytes)
+            recognition, category_key = build_instant_recognition(yolo_result)
+            self.write_json(
+                200,
+                {
+                    "category_key": category_key,
+                    "recognition": recognition,
+                    "processed_image_path": yolo_result.get("annotated_image_path"),
+                },
+            )
+            return
+
         if path.startswith("/api/users/") and path.endswith("/review"):
             if not self.require_admin():
                 return
@@ -570,7 +844,23 @@ class ApiHandler(BaseHTTPRequestHandler):
                 self.write_json(400, {"error": f"缺少字段: {', '.join(required)}"})
                 return
 
-            recognition = build_recognition(payload)
+            raw_image_path = None
+            processed_image_path = None
+            yolo_result = None
+            try:
+                image_data_url = payload.get("image_data_url", "")
+                if image_data_url:
+                    extension, raw_bytes = parse_data_url(image_data_url)
+                    raw_image_path = save_binary_file(raw_bytes, "pet", extension)
+                    yolo_result = detect_with_yolo(raw_bytes)
+                    processed_image_path = yolo_result.get("annotated_image_path")
+                if not processed_image_path:
+                    processed_image_path = save_image(payload.get("processed_image_data_url", ""), "pet_processed")
+            except ValueError as error:
+                self.write_json(400, {"error": str(error)})
+                return
+
+            recognition = build_recognition(payload, yolo_result)
             connection = get_db()
             cursor = connection.cursor()
             cursor.execute(
@@ -599,14 +889,25 @@ class ApiHandler(BaseHTTPRequestHandler):
                     payload.get("recognition_hint", "").strip(),
                     json.dumps(payload.get("vision_report", {}), ensure_ascii=False),
                     json.dumps(recognition, ensure_ascii=False),
-                    save_image(payload.get("image_data_url", ""), "pet"),
-                    save_image(payload.get("processed_image_data_url", ""), "pet_processed"),
+                    raw_image_path,
+                    processed_image_path,
                     now(),
                 ),
             )
             pet_id = cursor.lastrowid
             connection.commit()
             connection.close()
+            self.write_json(
+                201,
+                {
+                    "message": "宠物档案已创建。",
+                    "pet_id": pet_id,
+                    "recognition": recognition,
+                    "image_path": raw_image_path,
+                    "processed_image_path": processed_image_path,
+                },
+            )
+            return
             self.write_json(201, {"message": "宠物档案已创建。", "pet_id": pet_id, "recognition": recognition})
             return
 

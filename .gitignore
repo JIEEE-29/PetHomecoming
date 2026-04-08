@@ -2,5 +2,9 @@ __pycache__/
 *.pyc
 backend/pet_homecoming.db
 backend/*.db-journal
+backend/*.log
+frontend/*.log
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend/models/*
+!backend/models/.gitkeep
