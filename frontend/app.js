@@ -1,3 +1,5 @@
+const API_BASE = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "http://127.0.0.1:8000";
+
 const state = {
   token: localStorage.getItem("pet_homecoming_token") || "",
   currentUser: null,
@@ -17,10 +19,10 @@ function notify(message) {
   window.alert(message);
 }
 
-async function apiFetch(url, options = {}) {
+async function apiFetch(path, options = {}) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "请求失败");
   return data;
@@ -35,9 +37,13 @@ function saveToken(token) {
 function renderGlobalUser() {
   const globalUser = $("#globalUser");
   if (!globalUser) return;
-  globalUser.textContent = state.currentUser
-    ? `${state.currentUser.full_name} · ${state.currentUser.role}`
-    : "未登录";
+  if (state.currentUser) {
+    globalUser.textContent = state.currentUser.full_name;
+    globalUser.href = "./auth.html";
+  } else {
+    globalUser.textContent = "登录";
+    globalUser.href = "./login.html";
+  }
 }
 
 async function restoreSession() {
@@ -83,15 +89,15 @@ function renderList(container, items, formatter) {
 
 async function loadPetDetails(petId, commentContainer, contactContainer) {
   const data = await apiFetch(`/api/pets/${petId}`);
-  renderList(commentContainer, data.comments, (x) => `<strong>${x.full_name}</strong>${x.created_at}<br>${x.content}`);
-  renderList(contactContainer, data.contacts, (x) => `<strong>${x.full_name}</strong>${x.contact_type} · ${x.phone}<br>${x.message}`);
+  renderList(commentContainer, data.comments, (item) => `<strong>${item.full_name}</strong>${item.created_at}<br>${item.content}`);
+  renderList(contactContainer, data.contacts, (item) => `<strong>${item.full_name}</strong>${item.contact_type} · ${item.phone}<br>${item.message}`);
 }
 
 async function loadHomeStats() {
   const petCount = $("#petCount");
   if (petCount) {
-    const data = await apiFetch("/api/pets");
-    petCount.textContent = String(data.pets.length);
+    const petData = await apiFetch("/api/pets");
+    petCount.textContent = String(petData.pets.length);
   }
   const pendingCount = $("#pendingCount");
   if (!pendingCount) return;
@@ -99,29 +105,11 @@ async function loadHomeStats() {
     pendingCount.textContent = "0";
     return;
   }
-  const data = await apiFetch("/api/users/pending");
-  pendingCount.textContent = String(data.users.length);
+  const pendingData = await apiFetch("/api/users/pending");
+  pendingCount.textContent = String(pendingData.users.length);
 }
 
-function initAuthPage() {
-  const registerForm = $("#registerForm");
-  const loginForm = $("#loginForm");
-  const logoutBtn = $("#logoutBtn");
-  const authStatus = $("#authStatus");
-  const currentUserCard = $("#currentUserCard");
-
-  authStatus.textContent = state.currentUser ? `${state.currentUser.full_name} · ${state.currentUser.role}` : "未登录";
-  if (state.currentUser) {
-    currentUserCard.classList.remove("hidden");
-    currentUserCard.innerHTML = `
-      <strong>${state.currentUser.full_name}</strong><br>
-      用户名：${state.currentUser.username}<br>
-      电话：${state.currentUser.phone}<br>
-      审核状态：${state.currentUser.review_status}<br>
-      角色：${state.currentUser.role}
-    `;
-  }
-
+function bindRegisterForm(registerForm, successRedirect) {
   registerForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(registerForm).entries());
@@ -129,11 +117,14 @@ function initAuthPage() {
       const data = await apiFetch("/api/register", { method: "POST", body: JSON.stringify(payload) });
       registerForm.reset();
       notify(data.message);
+      if (successRedirect) window.location.href = successRedirect;
     } catch (error) {
       notify(error.message);
     }
   });
+}
 
+function bindLoginForm(loginForm) {
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(loginForm).entries());
@@ -143,52 +134,102 @@ function initAuthPage() {
       state.currentUser = data.user;
       renderGlobalUser();
       notify("登录成功。");
-      window.location.reload();
+      window.location.href = "./auth.html";
     } catch (error) {
       notify(error.message);
     }
   });
+}
 
-  logoutBtn.addEventListener("click", () => {
+function initAuthPage() {
+  const authStatus = $("#authStatus");
+  const authGuard = $("#authGuard");
+  const currentUserCard = $("#currentUserCard");
+  const authActions = $("#authActions");
+  const logoutBtn = $("#logoutBtn");
+
+  authStatus.textContent = state.currentUser ? `${state.currentUser.full_name} · ${state.currentUser.role}` : "未登录";
+
+  if (!state.currentUser) {
+    authGuard.classList.remove("hidden");
+    authGuard.innerHTML = `当前未登录，请先 <a class="inline-link" href="./login.html">登录</a> 后查看账户信息。`;
+    return;
+  }
+
+  currentUserCard.classList.remove("hidden");
+  authActions.classList.remove("hidden");
+  currentUserCard.innerHTML = `
+    <strong>${state.currentUser.full_name}</strong><br>
+    用户名：${state.currentUser.username}<br>
+    电话：${state.currentUser.phone}<br>
+    邮箱：${state.currentUser.email || "未填写"}<br>
+    地址：${state.currentUser.address || "未填写"}<br>
+    证件号：${state.currentUser.id_card || "未填写"}<br>
+    审核状态：${state.currentUser.review_status}<br>
+    角色：${state.currentUser.role}
+  `;
+
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      await apiFetch("/api/logout", { method: "POST", body: JSON.stringify({}) });
+    } catch {
+    }
     saveToken("");
     state.currentUser = null;
     renderGlobalUser();
     notify("已退出登录。");
-    window.location.reload();
+    window.location.href = "./index.html";
   });
+}
+
+function initLoginPage() {
+  bindLoginForm($("#loginForm"));
+}
+
+function initRegisterPage() {
+  bindRegisterForm($("#registerForm"), "./login.html");
 }
 
 function analyzeImageData(imageData) {
   const { data } = imageData;
   const pixels = data.length / 4;
-  let r = 0, g = 0, b = 0, brightness = 0, variance = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    const rr = data[i];
-    const gg = data[i + 1];
-    const bb = data[i + 2];
-    const light = 0.299 * rr + 0.587 * gg + 0.114 * bb;
-    r += rr;
-    g += gg;
-    b += bb;
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  let brightness = 0;
+  let variance = 0;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const r = data[index];
+    const g = data[index + 1];
+    const b = data[index + 2];
+    const light = 0.299 * r + 0.587 * g + 0.114 * b;
+    red += r;
+    green += g;
+    blue += b;
     brightness += light;
   }
-  const avgBrightness = brightness / pixels;
-  for (let i = 0; i < data.length; i += 4) {
-    const light = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-    variance += Math.pow(light - avgBrightness, 2);
+
+  const averageBrightness = brightness / pixels;
+  for (let index = 0; index < data.length; index += 4) {
+    const light = 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2];
+    variance += Math.pow(light - averageBrightness, 2);
   }
-  const avgR = r / pixels;
-  const avgG = g / pixels;
-  const avgB = b / pixels;
+
+  const averageRed = red / pixels;
+  const averageGreen = green / pixels;
+  const averageBlue = blue / pixels;
   const contrast = Math.sqrt(variance / pixels);
   let dominant = "灰白";
-  if (avgR > avgG + 18 && avgR > avgB + 18) dominant = "偏暖/棕橙";
-  if (avgG > avgR + 18 && avgG > avgB + 18) dominant = "偏绿";
-  if (avgB > avgR + 18 && avgB > avgG + 18) dominant = "偏蓝";
+
+  if (averageRed > averageGreen + 18 && averageRed > averageBlue + 18) dominant = "偏暖/棕橙";
+  if (averageGreen > averageRed + 18 && averageGreen > averageBlue + 18) dominant = "偏绿";
+  if (averageBlue > averageRed + 18 && averageBlue > averageGreen + 18) dominant = "偏蓝";
+
   return {
-    brightness: Number(avgBrightness.toFixed(2)),
+    brightness: Number(averageBrightness.toFixed(2)),
     contrast: Number(contrast.toFixed(2)),
-    average_rgb: [Math.round(avgR), Math.round(avgG), Math.round(avgB)],
+    average_rgb: [Math.round(averageRed), Math.round(averageGreen), Math.round(averageBlue)],
     dominant_color: dominant,
     clarity_level: contrast > 55 ? "较清晰" : contrast > 28 ? "一般" : "偏模糊",
   };
@@ -202,16 +243,14 @@ async function loadImageToCanvas(source, canvas, rawPreview, processedPreview, v
   const height = Math.round((image.height / image.width) * width);
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-  ctx.filter = "none";
-  ctx.drawImage(image, 0, 0, width, height);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.filter = "none";
+  context.drawImage(image, 0, 0, width, height);
   state.rawImage = canvas.toDataURL("image/jpeg", 0.9);
-  ctx.filter = "contrast(1.08) saturate(1.08)";
-  ctx.drawImage(image, 0, 0, width, height);
+  context.filter = "contrast(1.08) saturate(1.08)";
+  context.drawImage(image, 0, 0, width, height);
   state.processedImage = canvas.toDataURL("image/jpeg", 0.86);
-  state.visionReport = analyzeImageData(ctx.getImageData(0, 0, width, height));
-
+  state.visionReport = analyzeImageData(context.getImageData(0, 0, width, height));
   rawPreview.src = state.rawImage;
   processedPreview.src = state.processedImage;
   visionMetrics.textContent = JSON.stringify(state.visionReport, null, 2);
@@ -243,7 +282,7 @@ function initPublishPage() {
     const width = cameraPreview.videoWidth;
     const height = cameraPreview.videoHeight;
     if (!width || !height) {
-      notify("请先开启并等待摄像头准备完成。");
+      notify("请先开启摄像头并等待其准备完成。");
       return;
     }
     captureCanvas.width = width;
@@ -264,6 +303,7 @@ function initPublishPage() {
     event.preventDefault();
     if (!state.token) {
       notify("请先登录后创建宠物档案。");
+      window.location.href = "./login.html";
       return;
     }
     const payload = Object.fromEntries(new FormData(petForm).entries());
@@ -290,11 +330,16 @@ async function renderPetList(pets) {
     petList.textContent = "暂无宠物档案";
     return;
   }
+
   petList.className = "pet-list";
   petList.innerHTML = "";
   for (const pet of pets) {
     const fragment = petCardTemplate.content.cloneNode(true);
-    fragment.querySelector(".pet-image").src = pet.processed_image_path || pet.image_path || "";
+    fragment.querySelector(".pet-image").src = pet.processed_image_path
+      ? `${API_BASE}${pet.processed_image_path}`
+      : pet.image_path
+        ? `${API_BASE}${pet.image_path}`
+        : "";
     fragment.querySelector(".pet-name").textContent = pet.name;
     fragment.querySelector(".pet-subtitle").textContent = `${pet.breed || "未填写品种"} · ${pet.found_location || "地点待补充"} · ${pet.created_at}`;
     fragment.querySelector(".pet-description").textContent = pet.description || "暂无描述";
@@ -314,6 +359,7 @@ async function renderPetList(pets) {
       event.preventDefault();
       if (!state.token) {
         notify("请先登录后评论。");
+        window.location.href = "./login.html";
         return;
       }
       const payload = Object.fromEntries(new FormData(commentForm).entries());
@@ -329,13 +375,14 @@ async function renderPetList(pets) {
       event.preventDefault();
       if (!state.token) {
         notify("请先登录后提交联系申请。");
+        window.location.href = "./login.html";
         return;
       }
       const payload = Object.fromEntries(new FormData(contactForm).entries());
       try {
         await apiFetch(`/api/pets/${pet.id}/contacts`, { method: "POST", body: JSON.stringify(payload) });
-        await loadPetDetails(pet.id, commentList, contactList);
         contactForm.reset();
+        await loadPetDetails(pet.id, commentList, contactList);
       } catch (error) {
         notify(error.message);
       }
@@ -429,6 +476,8 @@ window.addEventListener("load", async () => {
   await restoreSession();
   if (page === "home") await loadHomeStats();
   if (page === "auth") initAuthPage();
+  if (page === "login") initLoginPage();
+  if (page === "register") initRegisterPage();
   if (page === "publish") initPublishPage();
   if (page === "pets") await initPetsPage();
   if (page === "admin") await initAdminPage();

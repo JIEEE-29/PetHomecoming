@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>账户中心 - 宠物归家系统</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body data-page="auth">
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="./index.html">宠物归家系统</a>
+      <nav class="site-nav">
+        <a href="./index.html">首页</a>
+        <a href="./auth.html">账户中心</a>
+        <a href="./publish.html">宠物发布</a>
+        <a href="./pets.html">宠物库</a>
+        <a href="./admin.html">审核后台</a>
+      </nav>
+      <a id="globalUser" class="global-user global-user-link" href="./login.html">登录</a>
+    </header>
+
+    <main class="page-wrap">
+      <section class="panel">
+        <div class="panel-title">
+          <h2>账户中心</h2>
+          <p id="authStatus">未登录</p>
+        </div>
+        <div id="authGuard" class="info-card hidden"></div>
+        <div id="currentUserCard" class="info-card hidden"></div>
+        <div id="authActions" class="panel-actions hidden">
+          <button type="button" class="secondary" id="logoutBtn">退出登录</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

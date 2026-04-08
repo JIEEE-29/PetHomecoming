@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
-pet_homecoming.db
-uploads/*
-!uploads/.gitkeep
+backend/pet_homecoming.db
+backend/*.db-journal
+backend/uploads/*
+!backend/uploads/.gitkeep

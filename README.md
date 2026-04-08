@@ -1,202 +1,130 @@
 # 宠物归家系统
 
-一个面向宠物寻回、救助、领养协同场景的轻量 Web 系统，基于 `Python 标准库 + SQLite + 原生 HTML/CSS/JavaScript` 实现，开箱即用，不依赖额外后端框架。
+当前仓库已经拆分为前后端分离架构：
 
-项目目标是把“人员注册审核”“宠物发布”“宠物检索互动”“后台审批”拆成清晰的业务页面，而不是堆在单一页面里，便于后续继续扩展。
+- `backend/` 只负责 API、鉴权、SQLite 数据库、图片上传资源
+- `frontend/` 只负责页面展示和浏览器端交互，通过 `API_BASE` 调用后端接口
 
-## 功能概览
+这意味着前端和后端可以独立启动、独立部署，也便于后续替换任意一侧的实现。
 
-### 1. 人员注册、登录、资料审核
+## 架构说明
 
-- 普通用户可注册账号并填写基础资料
-- 新注册用户默认进入 `pending` 审核状态
-- 只有审核通过的用户才允许登录系统
-- 管理员可在后台完成资料审批
+### 后端
 
-### 2. 拍照、图片处理与上传
+后端目录：`backend/`
 
-- 支持浏览器摄像头抓拍
-- 支持从本地选择图片上传
-- 前端会生成原图和处理后图片
-- 同时提取基础图像指标：
-  - 亮度
-  - 对比度
-  - 平均 RGB
-  - 主导色倾向
-  - 清晰度等级
+职责：
 
-### 3. 宠物分类与状态识别
+- 用户注册、登录、资料审核
+- 宠物档案创建与查询
+- 评论与联系申请
+- 宠物分类和状态规则识别
+- 图片上传与静态访问
+- SQLite 数据持久化
 
-- 支持人工填写宠物分类、状态、品种、发现地点和描述
-- 系统会结合文本关键词和图像分析做规则识别
-- 自动输出：
-  - 识别分类
-  - 识别状态
-  - 识别说明
-  - 后续处理建议
+后端接口前缀：
 
-### 4. 评论、救治联系、领养与认领
+- `/api/*`
+- `/uploads/*`
 
-- 用户可在宠物档案下发表评论
-- 可提交三种联系申请：
-  - `rescue` 救治联系
-  - `adoption` 领养申请
-  - `claim` 认领联系
+默认地址：
 
-## 页面结构
+- `http://127.0.0.1:8000`
 
-系统已拆分为多页面：
+### 前端
 
-- `/`
-  - 首页，展示系统入口与概览信息
-- `/auth`
-  - 账户中心，处理注册、登录、查看当前用户状态
-- `/publish`
-  - 宠物发布页，处理拍照、图片分析和建档
-- `/pets`
-  - 宠物库，浏览宠物、评论互动、提交联系申请
-- `/admin`
-  - 审核后台，仅管理员用于审批注册资料
+前端目录：`frontend/`
 
-## 技术栈
+职责：
 
-- 后端：Python 标准库
-  - `http.server`
-  - `sqlite3`
-  - `hashlib`
-- 数据库：SQLite
-- 前端：原生 HTML / CSS / JavaScript
-- 图片处理：浏览器 Canvas
+- 首页、账户中心、宠物发布、宠物库、审核后台页面
+- 摄像头拍照和图片基础处理
+- 调用后端 API 并渲染数据
+- 管理浏览器端登录态
 
-## 项目结构
+前端通过 `frontend/config.js` 中的 `API_BASE` 指向后端：
+
+```js
+window.APP_CONFIG = {
+  API_BASE: "http://127.0.0.1:8000",
+};
+```
+
+## 目录结构
 
 ```text
 pet-homecoming/
-├─ server.py
-├─ README.md
-├─ .gitignore
-├─ static/
+├─ backend/
+│  ├─ server.py
+│  └─ uploads/
+│     └─ .gitkeep
+├─ frontend/
 │  ├─ index.html
 │  ├─ auth.html
 │  ├─ publish.html
 │  ├─ pets.html
 │  ├─ admin.html
 │  ├─ app.js
+│  ├─ config.js
 │  └─ style.css
-└─ uploads/
-   └─ .gitkeep
+├─ .gitignore
+└─ README.md
 ```
 
 ## 本地运行
 
-### 1. 进入项目目录
+### 1. 启动后端
 
 ```powershell
-cd E:\Codex\pet-homecoming
-```
-
-### 2. 启动服务
-
-```powershell
+cd E:\Codex\pet-homecoming\backend
 python server.py
 ```
 
-启动成功后访问：
+启动后端后，API 地址为：
 
-- [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 
-其他页面入口：
+### 2. 启动前端
 
-- [http://127.0.0.1:8000/auth](http://127.0.0.1:8000/auth)
-- [http://127.0.0.1:8000/publish](http://127.0.0.1:8000/publish)
-- [http://127.0.0.1:8000/pets](http://127.0.0.1:8000/pets)
-- [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin)
+另开一个终端：
+
+```powershell
+cd E:\Codex\pet-homecoming\frontend
+python -m http.server 5173
+```
+
+然后访问：
+
+- [http://127.0.0.1:5173](http://127.0.0.1:5173)
+
+前端页面入口：
+
+- [http://127.0.0.1:5173/index.html](http://127.0.0.1:5173/index.html)
+- [http://127.0.0.1:5173/auth.html](http://127.0.0.1:5173/auth.html)
+- [http://127.0.0.1:5173/publish.html](http://127.0.0.1:5173/publish.html)
+- [http://127.0.0.1:5173/pets.html](http://127.0.0.1:5173/pets.html)
+- [http://127.0.0.1:5173/admin.html](http://127.0.0.1:5173/admin.html)
 
 ## 默认管理员账号
 
 - 用户名：`admin`
 - 密码：`admin123`
 
-首次启动时，系统会自动初始化数据库并创建该管理员账号。
+## 现有功能
 
-## 数据存储
+- 人员注册、登录、资料审核
+- 浏览器拍照、本地图片上传、图像基础处理
+- 宠物分类与状态识别
+- 宠物评论
+- 救治联系、领养申请、认领联系
+- 多页面前端
+- API-only 后端
 
-- SQLite 数据库文件：`pet_homecoming.db`
-- 上传图片目录：`uploads/`
+## 后续可扩展方向
 
-说明：
-
-- 数据库文件默认不会提交到 GitHub
-- 上传目录默认只保留 `.gitkeep`
-
-## 主要业务流程
-
-### 普通用户流程
-
-1. 在 `/auth` 页面注册账号
-2. 等待管理员审核
-3. 审核通过后登录
-4. 在 `/publish` 页面上传宠物照片并创建档案
-5. 在 `/pets` 页面查看宠物库、发表评论或提交联系申请
-
-### 管理员流程
-
-1. 使用默认管理员账号登录
-2. 打开 `/admin` 页面查看待审核用户
-3. 审核通过或驳回注册资料
-
-## 当前实现说明
-
-### 已实现
-
-- 多页面结构
-- 基础用户鉴权
-- 资料审核状态控制
-- 宠物档案创建
-- 评论发布
-- 救治/领养/认领联系单提交
-- 基于规则的宠物分类与状态识别
-- 图片基础分析与预处理
-
-### 当前识别逻辑的定位
-
-目前宠物识别为 MVP 版本，不是深度学习模型识别，主要用于打通业务流程。识别结果来自：
-
-- 文本关键词匹配
-- 图片亮度/对比度等规则分析
-
-后续可以替换为真实的图像识别或多模态模型接口。
-
-## 可扩展方向
-
-- 接入真实宠物图像识别模型
-- 增加短信、邮件或微信通知
-- 增加联系单处理状态流转
+- 将前端替换为 Vue / React / Next.js
+- 将后端替换为 FastAPI / Django / Flask
+- 将 SQLite 替换为 MySQL / PostgreSQL
+- 增加 JWT 或更完整的鉴权机制
 - 增加宠物详情独立页面
-- 增加管理员对宠物档案的审核功能
-- 增加角色权限细分
-- 拆分为前后端分离架构
-- 替换 SQLite 为 MySQL / PostgreSQL
-
-## 开发说明
-
-### 后端入口
-
-- [server.py](./server.py)
-
-### 前端入口
-
-- [static/index.html](./static/index.html)
-- [static/auth.html](./static/auth.html)
-- [static/publish.html](./static/publish.html)
-- [static/pets.html](./static/pets.html)
-- [static/admin.html](./static/admin.html)
-
-### 样式与交互
-
-- 共享脚本：[static/app.js](./static/app.js)
-- 共享样式：[static/style.css](./static/style.css)
-
-## 许可证
-
-当前仓库未单独声明许可证，如需开源发布，建议补充 `LICENSE` 文件。
+- 增加消息通知和审核流转

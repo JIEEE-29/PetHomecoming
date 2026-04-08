@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>注册 - 宠物归家系统</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body data-page="register">
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="./index.html">宠物归家系统</a>
+      <nav class="site-nav">
+        <a href="./index.html">首页</a>
+        <a href="./auth.html">账户中心</a>
+        <a href="./publish.html">宠物发布</a>
+        <a href="./pets.html">宠物库</a>
+        <a href="./admin.html">审核后台</a>
+      </nav>
+      <a id="globalUser" class="global-user global-user-link" href="./login.html">登录</a>
+    </header>
+
+    <main class="page-wrap narrow-wrap">
+      <section class="panel">
+        <div class="panel-title">
+          <h2>人员注册</h2>
+          <p>提交后需等待管理员审核</p>
+        </div>
+        <form id="registerForm" class="card-form single-form">
+          <input name="username" placeholder="用户名" required>
+          <input name="password" type="password" placeholder="密码" required>
+          <input name="full_name" placeholder="姓名" required>
+          <input name="phone" placeholder="电话" required>
+          <input name="email" placeholder="邮箱">
+          <input name="address" placeholder="地址">
+          <input name="id_card" placeholder="身份证/证件号">
+          <button type="submit">提交注册</button>
+          <a class="text-button" href="./login.html">已有账号？去登录</a>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

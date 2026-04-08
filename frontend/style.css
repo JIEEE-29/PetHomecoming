@@ -93,7 +93,7 @@ a { color: inherit; text-decoration: none; }
 .eyebrow {
   margin: 0 0 8px;
   font-size: 12px;
-  letter-spacing: .24em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--accent-deep);
 }
@@ -149,7 +149,9 @@ a { color: inherit; text-decoration: none; }
 
 .panel-title h2,
 .card-form h3,
-.detail-panel h4 { margin: 0; }
+.detail-panel h4 {
+  margin: 0;
+}
 
 .card-form,
 .detail-panel,
@@ -182,7 +184,7 @@ button,
 .file-input {
   width: 100%;
   border-radius: 14px;
-  border: 1px solid rgba(113,74,39,.18);
+  border: 1px solid rgba(113, 74, 39, 0.18);
   font: inherit;
 }
 
@@ -190,7 +192,7 @@ input,
 select,
 textarea {
   padding: 12px 14px;
-  background: rgba(255,255,255,.72);
+  background: rgba(255, 255, 255, 0.72);
   color: var(--text);
 }
 
@@ -211,7 +213,7 @@ button,
 .camera-wrap {
   border-radius: 18px;
   overflow: hidden;
-  background: rgba(48, 34, 24, .94);
+  background: rgba(48, 34, 24, 0.94);
 }
 
 #cameraPreview {
@@ -229,15 +231,20 @@ button,
   padding: 12px;
 }
 
-.toolbar { padding: 0; margin-bottom: 16px; }
+.toolbar {
+  padding: 0;
+  margin-bottom: 16px;
+}
+
 .file-input input { display: none; }
+
 .preview-card { min-height: 220px; }
 .preview-card img {
   width: 100%;
   height: 170px;
   object-fit: cover;
   border-radius: 14px;
-  background: rgba(113, 74, 39, .08);
+  background: rgba(113, 74, 39, 0.08);
 }
 
 .preview-card pre {
@@ -268,7 +275,7 @@ button,
   max-height: 360px;
   object-fit: cover;
   border-radius: 18px;
-  background: rgba(113, 74, 39, .08);
+  background: rgba(113, 74, 39, 0.08);
 }
 
 .pet-body { display: grid; gap: 12px; }
@@ -295,7 +302,7 @@ button,
   align-items: center;
   border-radius: 999px;
   padding: 7px 12px;
-  background: rgba(217,107,43,.1);
+  background: rgba(217, 107, 43, 0.1);
   color: var(--accent-deep);
   font-size: 12px;
 }
@@ -303,8 +310,8 @@ button,
 .recognition-box {
   border-radius: 16px;
   padding: 12px;
-  background: rgba(255,244,226,.88);
-  border: 1px solid rgba(217,107,43,.12);
+  background: rgba(255, 244, 226, 0.88);
+  border: 1px solid rgba(217, 107, 43, 0.12);
   line-height: 1.8;
   font-size: 14px;
 }
@@ -322,8 +329,8 @@ button,
 .list-item {
   border-radius: 14px;
   padding: 10px 12px;
-  background: rgba(255,255,255,.66);
-  border: 1px solid rgba(113,74,39,.08);
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(113, 74, 39, 0.08);
   line-height: 1.65;
 }
 
@@ -353,3 +360,33 @@ button,
     justify-content: center;
   }
 }
+.global-user-link {
+  cursor: pointer;
+}
+
+.global-user-link:hover {
+  color: var(--accent-deep);
+}
+
+.panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.narrow-wrap {
+  max-width: 720px;
++  margin: 0 auto;
+}
+
+.single-form {
+  display: grid;
+  gap: 12px;
+}
+
+.text-button,
+.inline-link {
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+

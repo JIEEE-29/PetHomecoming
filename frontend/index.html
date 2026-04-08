@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宠物归家系统</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body data-page="home">
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="./index.html">宠物归家系统</a>
+      <nav class="site-nav">
+        <a href="./index.html">首页</a>
+        <a href="./auth.html">账户中心</a>
+        <a href="./publish.html">宠物发布</a>
+        <a href="./pets.html">宠物库</a>
+        <a href="./admin.html">审核后台</a>
+      </nav>
+      <a id="globalUser" class="global-user global-user-link" href="./login.html">登录</a>
+    </header>
+
+    <main class="page-wrap">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Pet Homecoming Frontend</p>
+          <h1>前后端分离版宠物归家系统</h1>
+          <p class="hero-copy">
+            前端独立运行在静态站点中，后端仅提供 API 和上传资源。页面按角色和业务流程拆分，便于后续替换前端框架或独立部署。
+          </p>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-card">
+            <span id="petCount">0</span>
+            <small>在库宠物档案</small>
+          </div>
+          <div class="stat-card">
+            <span id="pendingCount">0</span>
+            <small>待审核人员</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>功能入口</h2>
+          <p>前端页面独立，统一通过 API 访问后端数据</p>
+        </div>
+        <div class="feature-grid">
+          <a class="feature-link" href="./auth.html">
+            <strong>账户中心</strong>
+            <span>查看当前用户资料、审核状态和角色信息</span>
+          </a>
+          <a class="feature-link" href="./publish.html">
+            <strong>宠物发布</strong>
+            <span>拍照、图像处理、识别与建档</span>
+          </a>
+          <a class="feature-link" href="./pets.html">
+            <strong>宠物库</strong>
+            <span>浏览宠物、评论互动、提交联系申请</span>
+          </a>
+          <a class="feature-link" href="./admin.html">
+            <strong>审核后台</strong>
+            <span>管理员审批注册资料</span>
+          </a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -4,18 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>宠物库 - 宠物归家系统</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body data-page="pets">
   <div class="site-shell">
     <header class="site-header">
-      <a class="brand" href="/">宠物归家系统</a>
+      <a class="brand" href="./index.html">宠物归家系统</a>
       <nav class="site-nav">
-        <a href="/">首页</a>
-        <a href="/auth">账户中心</a>
-        <a href="/publish">宠物发布</a>
-        <a href="/pets">宠物库</a>
-        <a href="/admin">审核后台</a>
+        <a href="./index.html">首页</a>
+        <a href="./auth.html">账户中心</a>
+        <a href="./publish.html">宠物发布</a>
+        <a href="./pets.html">宠物库</a>
+        <a href="./admin.html">审核后台</a>
       </nav>
       <div id="globalUser" class="global-user">未登录</div>
     </header>
@@ -54,7 +54,10 @@
         <img class="pet-image" alt="宠物图片">
         <div class="pet-body">
           <div class="pet-head">
-            <div><h3 class="pet-name"></h3><p class="pet-subtitle"></p></div>
+            <div>
+              <h3 class="pet-name"></h3>
+              <p class="pet-subtitle"></p>
+            </div>
             <span class="pill pet-state"></span>
           </div>
           <p class="pet-description"></p>
@@ -92,6 +95,8 @@
       </article>
     </template>
   </div>
-  <script src="/static/app.js"></script>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>

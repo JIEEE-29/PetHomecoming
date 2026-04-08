@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 宠物归家系统</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body data-page="login">
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="./index.html">宠物归家系统</a>
+      <nav class="site-nav">
+        <a href="./index.html">首页</a>
+        <a href="./auth.html">账户中心</a>
+        <a href="./publish.html">宠物发布</a>
+        <a href="./pets.html">宠物库</a>
+        <a href="./admin.html">审核后台</a>
+      </nav>
+      <a id="globalUser" class="global-user global-user-link" href="./login.html">登录</a>
+    </header>
+
+    <main class="page-wrap narrow-wrap">
+      <section class="panel">
+        <div class="panel-title">
+          <h2>登录</h2>
+          <p>登录后可发布宠物档案、评论和联系申请</p>
+        </div>
+        <form id="loginForm" class="card-form single-form">
+          <input name="username" placeholder="用户名" required>
+          <input name="password" type="password" placeholder="密码" required>
+          <button type="submit">登录系统</button>
+          <a class="text-button" href="./register.html">没有账号？去注册</a>
+          <p class="hint">默认管理员：admin / admin123</p>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
