@@ -210,17 +210,31 @@ button,
 
 .secondary { background: linear-gradient(135deg, #7d8e65, var(--green)); }
 
-.camera-wrap {
-  border-radius: 18px;
-  overflow: hidden;
-  background: rgba(48, 34, 24, 0.94);
+.upload-stage {
+  display: block;
+  margin-bottom: 18px;
 }
 
-#cameraPreview {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  display: block;
+.upload-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.upload-button {
+  width: auto;
+  min-width: 168px;
+  padding: 14px 28px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  color: #fffaf0;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 14px 28px rgba(143, 60, 16, 0.18);
+}
+
+.upload-button:hover {
+  filter: brightness(1.03);
 }
 
 .capture-actions,
@@ -365,6 +379,14 @@ button,
   .site-nav {
     justify-content: center;
   }
+
+  .upload-button {
+    width: 100%;
+  }
+
+  .upload-actions {
+    justify-content: flex-start;
+  }
 }
 .global-user-link {
   cursor: pointer;
@@ -382,7 +404,7 @@ button,
 
 .narrow-wrap {
   max-width: 720px;
-+  margin: 0 auto;
+  margin: 0 auto;
 }
 
 .single-form {

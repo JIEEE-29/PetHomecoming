@@ -17,24 +17,23 @@
         <a href="./pets.html">宠物库</a>
         <a href="./admin.html">审核后台</a>
       </nav>
-      <div id="globalUser" class="global-user">未登录</div>
+      <a id="globalUser" class="global-user" href="./login.html">登录</a>
     </header>
 
     <main class="page-wrap">
       <section class="panel">
         <div class="panel-title">
-          <h2>拍照与宠物建档</h2>
-          <p>浏览器摄像头、本地上传、图像处理、识别建议</p>
+          <h2>本地上传与宠物建档</h2>
+          <p>发布页仅保留本地图片上传，上传后自动完成图像处理、识别分析和宠物档案填写。</p>
         </div>
-        <div class="camera-wrap">
-          <video id="cameraPreview" autoplay playsinline muted></video>
+
+        <section class="upload-stage">
           <canvas id="captureCanvas" class="hidden"></canvas>
-          <div class="capture-actions">
-            <button type="button" id="startCameraBtn">开启摄像头</button>
-            <button type="button" class="secondary" id="captureBtn">拍照并处理</button>
-            <label class="file-input">本地上传<input type="file" id="imageFileInput" accept="image/*"></label>
+          <input type="file" id="imageFileInput" class="hidden" accept="image/*">
+          <div class="upload-actions">
+            <button type="button" id="uploadButton" class="upload-button">本地上传</button>
           </div>
-        </div>
+        </section>
 
         <div class="image-preview-grid">
           <div class="preview-card">
@@ -78,7 +77,7 @@
           </div>
           <input name="found_location" placeholder="发现/救助地点">
           <input name="recognition_hint" placeholder="识别提示词，例如：橘猫、蓝项圈、左耳缺口">
-          <input name="adoption_status" placeholder="领养说明，例如：已绝育/可预约看宠">
+          <input name="adoption_status" placeholder="领养说明，例如：已绝育、可预约看宠">
           <textarea name="description" placeholder="情况描述：走失、发现时间、体貌特征等"></textarea>
           <textarea name="health_note" placeholder="健康状态：外伤、疫苗、虚弱程度、治疗建议等"></textarea>
           <button type="submit">提交宠物档案</button>

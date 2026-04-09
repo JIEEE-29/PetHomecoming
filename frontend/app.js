@@ -320,11 +320,23 @@ async function analyzeUploadedImage(recognitionCard, processedPreview, categoryS
   }
 }
 
+async function handlePublishFile(file, captureCanvas, rawPreview, processedPreview, visionMetrics, recognitionCard, manualCategorySelect) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    notify("请上传图片文件。");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    await loadImageToCanvas(reader.result, captureCanvas, rawPreview, processedPreview, visionMetrics);
+    await analyzeUploadedImage(recognitionCard, processedPreview, manualCategorySelect);
+  };
+  reader.readAsDataURL(file);
+}
+
 function initPublishPage() {
-  const startCameraBtn = $("#startCameraBtn");
-  const captureBtn = $("#captureBtn");
   const imageFileInput = $("#imageFileInput");
-  const cameraPreview = $("#cameraPreview");
+  const uploadButton = $("#uploadButton");
   const captureCanvas = $("#captureCanvas");
   const rawPreview = $("#rawPreview");
   const processedPreview = $("#processedPreview");
@@ -342,43 +354,24 @@ function initPublishPage() {
     metricsCard.remove();
   }
 
-  startCameraBtn.addEventListener("click", async () => {
-    if (state.cameraStream) return;
-    try {
-      state.cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      cameraPreview.srcObject = state.cameraStream;
-    } catch (error) {
-      notify(`无法开启摄像头：${error.message}`);
-    }
-  });
+  if (uploadButton) {
+    uploadButton.addEventListener("click", () => {
+      imageFileInput.value = "";
+      imageFileInput.click();
+    });
+  }
 
-  captureBtn.addEventListener("click", async () => {
-    const width = cameraPreview.videoWidth;
-    const height = cameraPreview.videoHeight;
-    if (!width || !height) {
-      notify("请先开启摄像头并等待其准备完成。");
-      return;
-    }
-    captureCanvas.width = width;
-    captureCanvas.height = height;
-    captureCanvas.getContext("2d").drawImage(cameraPreview, 0, 0, width, height);
-    await loadImageToCanvas(captureCanvas.toDataURL("image/jpeg", 0.9), captureCanvas, rawPreview, processedPreview, visionMetrics);
-    await analyzeUploadedImage(recognitionCard, processedPreview, manualCategorySelect);
-  });
-
-  imageFileInput.addEventListener("change", (event) => {
+  imageFileInput.addEventListener("change", async (event) => {
     const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      await loadImageToCanvas(reader.result, captureCanvas, rawPreview, processedPreview, visionMetrics);
-      await analyzeUploadedImage(recognitionCard, processedPreview, manualCategorySelect);
-    };
-    reader.readAsDataURL(file);
+    await handlePublishFile(file, captureCanvas, rawPreview, processedPreview, visionMetrics, recognitionCard, manualCategorySelect);
   });
 
   petForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!state.rawImage) {
+      notify("请先上传宠物图片。");
+      return;
+    }
     if (!state.token) {
       notify("请先登录后创建宠物档案。");
       window.location.href = "./login.html";
