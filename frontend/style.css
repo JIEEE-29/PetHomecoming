@@ -147,6 +147,25 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 16px;
 }
 
+.panel-title-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.panel-inline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  color: #fffaf0;
+  font-weight: 700;
+  box-shadow: 0 12px 24px rgba(143, 60, 16, 0.16);
+}
+
 .panel-title h2,
 .card-form h3,
 .detail-panel h4 {
@@ -287,6 +306,22 @@ button,
   gap: 18px;
   padding: 16px;
   border-radius: 24px;
+  align-items: start;
+}
+
+.pet-card-clickable {
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.pet-card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 28px 64px rgba(78, 52, 29, 0.16);
+}
+
+.pet-card-clickable:focus-visible {
+  outline: 3px solid rgba(217, 107, 43, 0.26);
+  outline-offset: 4px;
 }
 
 .pet-image {
@@ -298,7 +333,11 @@ button,
   background: rgba(113, 74, 39, 0.08);
 }
 
-.pet-body { display: grid; gap: 12px; }
+.pet-body {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
 
 .pet-head {
   display: flex;
@@ -307,9 +346,30 @@ button,
   align-items: flex-start;
 }
 
-.pet-name { margin: 0 0 4px; font-size: 24px; }
+.pet-name { margin: 0 0 2px; font-size: 24px; line-height: 1.15; }
 .pet-subtitle,
-.pet-description { margin: 0; color: var(--muted); line-height: 1.75; }
+.pet-description { margin: 0; color: var(--muted); line-height: 1.45; }
+
+.pet-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.pet-card-hint {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.pet-detail-link {
+  white-space: nowrap;
+}
+
+.pet-detail-card {
+  align-items: start;
+}
 
 .pill-row {
   display: flex;
@@ -380,12 +440,21 @@ button,
     justify-content: center;
   }
 
+  .panel-title-main {
+    flex-wrap: wrap;
+  }
+
   .upload-button {
     width: 100%;
   }
 
   .upload-actions {
     justify-content: flex-start;
+  }
+
+  .pet-card-footer {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 .global-user-link {

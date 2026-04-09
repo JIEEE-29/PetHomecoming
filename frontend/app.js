@@ -62,6 +62,50 @@ async function restoreSession() {
   renderGlobalUser();
 }
 
+function normalizeCategoryLabel(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+
+  const directMap = {
+    dog: "\u72ac\u7c7b",
+    cat: "\u732b\u7c7b",
+    bird: "\u9e1f\u7c7b",
+    other: "\u5176\u4ed6",
+    small_pet: "\u5c0f\u578b\u5ba0\u7269",
+    pending_manual: "\u5f85\u4eba\u5de5\u786e\u8ba4",
+    "\u72ac\u7c7b": "\u72ac\u7c7b",
+    "\u732b\u7c7b": "\u732b\u7c7b",
+    "\u9e1f\u7c7b": "\u9e1f\u7c7b",
+    "\u5176\u4ed6": "\u5176\u4ed6",
+    "\u5c0f\u578b\u5ba0\u7269": "\u5c0f\u578b\u5ba0\u7269",
+    "\u5f85\u4eba\u5de5\u786e\u8ba4": "\u5f85\u4eba\u5de5\u786e\u8ba4",
+    "\u6966\u71ba\u88ab": "\u9e1f\u7c7b",
+    "\u941a\ue0a4\u88ab": "\u732b\u7c7b",
+    "\u9418\ue102\u88ab": "\u72ac\u7c7b",
+  };
+  if (directMap[text]) return directMap[text];
+
+  const fallbackPatterns = [
+    ["dog", "\u72ac\u7c7b"],
+    ["cat", "\u732b\u7c7b"],
+    ["bird", "\u9e1f\u7c7b"],
+    ["\u9418", "\u72ac\u7c7b"],
+    ["\u941a", "\u732b\u7c7b"],
+    ["\u6966", "\u9e1f\u7c7b"],
+    ["\u93c9", "\u5176\u4ed6"],
+    ["\u704f\u5fd5\u7037", "\u5c0f\u578b\u5ba0\u7269"],
+    ["\u5be0\u4eba\u5de5", "\u5f85\u4eba\u5de5\u786e\u8ba4"],
+  ];
+  const lower = text.toLowerCase();
+  if (text.includes("\u6966") || text.includes("\u71ba\u88ab")) return "\u9e1f\u7c7b";
+  if (text.includes("\u941a") || text.includes("\ue0a4\u88ab")) return "\u732b\u7c7b";
+  if (text.includes("\u9418") || text.includes("\ue102\u88ab")) return "\u72ac\u7c7b";
+  for (const [needle, label] of fallbackPatterns) {
+    if (text.includes(needle) || lower.includes(needle.toLowerCase())) return label;
+  }
+  return text;
+}
+
 function formatRecognitionCard(recognition) {
   if (!recognition) return "尚未识别";
   const yolo = recognition.yolo || {};
@@ -409,6 +453,9 @@ async function renderPetList(pets) {
   petList.innerHTML = "";
   for (const pet of pets) {
     const fragment = petCardTemplate.content.cloneNode(true);
+    const article = fragment.querySelector(".pet-card");
+    const detailLink = fragment.querySelector(".pet-detail-link");
+    const detailUrl = `./pet-detail.html?id=${pet.id}`;
     fragment.querySelector(".pet-image").src = pet.processed_image_path
       ? `${API_BASE}${pet.processed_image_path}`
       : pet.image_path
@@ -418,53 +465,34 @@ async function renderPetList(pets) {
     fragment.querySelector(".pet-subtitle").textContent = `${pet.breed || "未填写品种"} · ${pet.found_location || "地点待补充"} · ${pet.created_at}`;
     fragment.querySelector(".pet-description").textContent = pet.description || "暂无描述";
     fragment.querySelector(".pet-state").textContent = pet.recognized_state_label || pet.recognized_state || pet.status;
-    fragment.querySelector(".category-pill").dataset.labelOverride = pet.recognized_category_label || "";
-    fragment.querySelector(".category-pill").textContent = pet.recognized_category || pet.manual_category || "未分类";
+    fragment.querySelector(".category-pill").dataset.labelOverride = normalizeCategoryLabel(
+      pet.recognized_category_label || pet.recognized_category || pet.manual_category || ""
+    );
+    fragment.querySelector(".category-pill").textContent = normalizeCategoryLabel(
+      pet.recognized_category || pet.manual_category || ""
+    ) || "未分类";
     fragment.querySelector(".creator-pill").textContent = `发布人：${pet.creator_name}`;
     fragment.querySelector(".comment-pill").textContent = `评论 ${pet.comment_count || 0}`;
     if (fragment.querySelector(".category-pill").dataset.labelOverride) {
       fragment.querySelector(".category-pill").textContent = fragment.querySelector(".category-pill").dataset.labelOverride;
     }
-    fragment.querySelector(".recognition-box").innerHTML = formatRecognitionCard(pet.recognition);
-
-    const commentList = fragment.querySelector(".comment-list");
-    const contactList = fragment.querySelector(".contact-list");
-    const commentForm = fragment.querySelector(".comment-form");
-    const contactForm = fragment.querySelector(".contact-form");
-    await loadPetDetails(pet.id, commentList, contactList);
-
-    commentForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (!state.token) {
-        notify("请先登录后评论。");
-        window.location.href = "./login.html";
-        return;
-      }
-      const payload = Object.fromEntries(new FormData(commentForm).entries());
-      try {
-        await apiFetch(`/api/pets/${pet.id}/comments`, { method: "POST", body: JSON.stringify(payload) });
-        await initPetsPage(true);
-      } catch (error) {
-        notify(error.message);
-      }
-    });
-
-    contactForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (!state.token) {
-        notify("请先登录后提交联系申请。");
-        window.location.href = "./login.html";
-        return;
-      }
-      const payload = Object.fromEntries(new FormData(contactForm).entries());
-      try {
-        await apiFetch(`/api/pets/${pet.id}/contacts`, { method: "POST", body: JSON.stringify(payload) });
-        contactForm.reset();
-        await loadPetDetails(pet.id, commentList, contactList);
-      } catch (error) {
-        notify(error.message);
-      }
-    });
+    if (detailLink) {
+      detailLink.href = detailUrl;
+    }
+    if (article) {
+      article.tabIndex = 0;
+      article.role = "link";
+      article.addEventListener("click", (event) => {
+        if (event.target.closest("a, button, input, select, textarea")) return;
+        window.location.href = detailUrl;
+      });
+      article.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          window.location.href = detailUrl;
+        }
+      });
+    }
 
     petList.appendChild(fragment);
   }
@@ -485,6 +513,95 @@ async function initPetsPage(skipBind = false) {
       event.preventDefault();
       await initPetsPage(true);
     });
+  }
+}
+
+function getPetIdFromQuery() {
+  const value = new URLSearchParams(window.location.search).get("id") || "";
+  return /^\d+$/.test(value) ? value : "";
+}
+
+async function initPetDetailPage() {
+  const guard = $("#petDetailGuard");
+  const card = $("#petDetailCard");
+  const commentList = $("#detailCommentList");
+  const contactList = $("#detailContactList");
+  const commentForm = $("#detailCommentForm");
+  const contactForm = $("#detailContactForm");
+  const petId = getPetIdFromQuery();
+
+  if (!petId) {
+    guard.classList.remove("hidden");
+    guard.textContent = "帖子不存在或链接无效。";
+    return;
+  }
+
+  try {
+    const data = await apiFetch(`/api/pets/${petId}`);
+    const pet = data.pet;
+
+    $("#petDetailImage").src = pet.processed_image_path
+      ? `${API_BASE}${pet.processed_image_path}`
+      : pet.image_path
+        ? `${API_BASE}${pet.image_path}`
+        : "";
+    $("#petDetailName").textContent = pet.name;
+    $("#petDetailSubtitle").textContent = `${pet.breed || "未填写品种"} · ${pet.found_location || "地点待补充"} · ${pet.created_at}`;
+    $("#petDetailDescription").textContent = pet.description || "暂无描述";
+    $("#petDetailState").textContent = pet.recognized_state_label || pet.recognized_state || pet.status;
+    $("#petDetailCategory").textContent = normalizeCategoryLabel(pet.recognized_category_label || pet.recognized_category || pet.manual_category) || "未分类";
+    $("#petDetailCreator").textContent = `发布人：${pet.creator_name}`;
+    $("#petDetailComments").textContent = `评论 ${data.comments.length}`;
+
+    renderList(commentList, data.comments, (item) => `<strong>${item.full_name}</strong> ${item.created_at}<br>${item.content}`);
+    renderList(contactList, data.contacts, (item) => `<strong>${item.full_name}</strong> ${item.contact_type} · ${item.phone}<br>${item.message}`);
+
+    if (!commentForm.dataset.bound) {
+      commentForm.dataset.bound = "1";
+      commentForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!state.token) {
+          notify("请先登录后评论。");
+          window.location.href = "./login.html";
+          return;
+        }
+        const payload = Object.fromEntries(new FormData(commentForm).entries());
+        try {
+          await apiFetch(`/api/pets/${petId}/comments`, { method: "POST", body: JSON.stringify(payload) });
+          commentForm.reset();
+          await initPetDetailPage();
+        } catch (error) {
+          notify(error.message);
+        }
+      });
+    }
+
+    if (!contactForm.dataset.bound) {
+      contactForm.dataset.bound = "1";
+      contactForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!state.token) {
+          notify("请先登录后提交联系申请。");
+          window.location.href = "./login.html";
+          return;
+        }
+        const payload = Object.fromEntries(new FormData(contactForm).entries());
+        try {
+          await apiFetch(`/api/pets/${petId}/contacts`, { method: "POST", body: JSON.stringify(payload) });
+          contactForm.reset();
+          await initPetDetailPage();
+        } catch (error) {
+          notify(error.message);
+        }
+      });
+    }
+
+    guard.classList.add("hidden");
+    card.classList.remove("hidden");
+  } catch (error) {
+    card.classList.add("hidden");
+    guard.classList.remove("hidden");
+    guard.textContent = error.message || "帖子加载失败。";
   }
 }
 
@@ -552,11 +669,15 @@ async function initAdminPage() {
 
 window.addEventListener("load", async () => {
   await restoreSession();
-  if (page === "home") await loadHomeStats();
+  if (page === "home") {
+    await loadHomeStats();
+    await initPetsPage();
+  }
   if (page === "auth") initAuthPage();
   if (page === "login") initLoginPage();
   if (page === "register") initRegisterPage();
   if (page === "publish") initPublishPage();
   if (page === "pets") await initPetsPage();
+  if (page === "pet-detail") await initPetDetailPage();
   if (page === "admin") await initAdminPage();
 });

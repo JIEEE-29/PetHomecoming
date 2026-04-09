@@ -13,8 +13,6 @@
       <nav class="site-nav">
         <a href="./index.html">首页</a>
         <a href="./auth.html">账户中心</a>
-        <a href="./publish.html">宠物发布</a>
-        <a href="./pets.html">宠物库</a>
         <a href="./admin.html">审核后台</a>
       </nav>
       <a id="globalUser" class="global-user global-user-link" href="./login.html">登录</a>
@@ -24,9 +22,9 @@
       <section class="hero">
         <div>
           <p class="eyebrow">Pet Homecoming Frontend</p>
-          <h1>前后端分离版宠物归家系统</h1>
+          <h1>宠物归家信息大厅</h1>
           <p class="hero-copy">
-            前端独立运行在静态站点中，后端仅提供 API 和上传资源。页面按角色和业务流程拆分，便于后续替换前端框架或独立部署。
+            首页直接展示宠物库内容，你可以在这里筛选、浏览帖子，并点击进入详情页查看评论区和救治/领养/认领联系信息。
           </p>
         </div>
         <div class="hero-stats">
@@ -43,29 +41,59 @@
 
       <section class="panel">
         <div class="panel-title">
-          <h2>功能入口</h2>
-          <p>前端页面独立，统一通过 API 访问后端数据</p>
+          <div class="panel-title-main">
+            <h2>宠物库</h2>
+            <a class="panel-inline-action" href="./publish.html">宠物发布</a>
+          </div>
+          <p>首页展示全部宠物帖子，点击帖子进入详情页查看完整信息。</p>
         </div>
-        <div class="feature-grid">
-          <a class="feature-link" href="./auth.html">
-            <strong>账户中心</strong>
-            <span>查看当前用户资料、审核状态和角色信息</span>
-          </a>
-          <a class="feature-link" href="./publish.html">
-            <strong>宠物发布</strong>
-            <span>拍照、图像处理、识别与建档</span>
-          </a>
-          <a class="feature-link" href="./pets.html">
-            <strong>宠物库</strong>
-            <span>浏览宠物、评论互动、提交联系申请</span>
-          </a>
-          <a class="feature-link" href="./admin.html">
-            <strong>审核后台</strong>
-            <span>管理员审批注册资料</span>
-          </a>
-        </div>
+        <form id="filterForm" class="toolbar">
+          <input name="keyword" placeholder="搜索名称、地点或描述">
+          <select name="category">
+            <option value="">全部分类</option>
+            <option value="犬类">犬类</option>
+            <option value="猫类">猫类</option>
+            <option value="鸟类">鸟类</option>
+            <option value="小型宠物">小型宠物</option>
+            <option value="其他">其他</option>
+          </select>
+          <select name="state">
+            <option value="">全部状态</option>
+            <option value="待寻主">待寻主</option>
+            <option value="需救治">需救治</option>
+            <option value="待领养">待领养</option>
+            <option value="已归家">已归家</option>
+          </select>
+          <button type="submit">筛选</button>
+        </form>
+        <div id="petList" class="pet-list empty">暂无宠物档案</div>
       </section>
     </main>
+
+    <template id="petCardTemplate">
+      <article class="pet-card pet-card-clickable">
+        <img class="pet-image" alt="宠物图片">
+        <div class="pet-body">
+          <div class="pet-head">
+            <div>
+              <h3 class="pet-name"></h3>
+              <p class="pet-subtitle"></p>
+            </div>
+            <span class="pill pet-state"></span>
+          </div>
+          <p class="pet-description"></p>
+          <div class="pill-row">
+            <span class="pill category-pill"></span>
+            <span class="pill creator-pill"></span>
+            <span class="pill comment-pill"></span>
+          </div>
+          <div class="pet-card-footer">
+            <span class="pet-card-hint">点击帖子查看评论区和联系信息</span>
+            <a class="text-button pet-detail-link" href="#">查看帖子</a>
+          </div>
+        </div>
+      </article>
+    </template>
   </div>
 
   <script src="./config.js"></script>

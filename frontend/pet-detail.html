@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宠物详情 - 宠物归家系统</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body data-page="pet-detail">
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="./index.html">宠物归家系统</a>
+      <nav class="site-nav">
+        <a href="./index.html">首页</a>
+        <a href="./auth.html">账户中心</a>
+        <a href="./admin.html">审核后台</a>
+      </nav>
+      <a id="globalUser" class="global-user" href="./login.html">登录</a>
+    </header>
+
+    <main class="page-wrap">
+      <section class="panel">
+        <div class="panel-title">
+          <h2>帖子详情</h2>
+          <p>查看完整识别结果、评论区和救治/领养/认领联系信息。</p>
+        </div>
+        <div id="petDetailGuard" class="info-card hidden"></div>
+        <article id="petDetailCard" class="pet-card hidden pet-detail-card">
+          <img id="petDetailImage" class="pet-image" alt="宠物图片">
+          <div class="pet-body">
+            <div class="pet-head">
+              <div>
+                <h3 id="petDetailName" class="pet-name"></h3>
+                <p id="petDetailSubtitle" class="pet-subtitle"></p>
+              </div>
+              <span id="petDetailState" class="pill pet-state"></span>
+            </div>
+            <p id="petDetailDescription" class="pet-description"></p>
+            <div class="pill-row">
+              <span id="petDetailCategory" class="pill"></span>
+              <span id="petDetailCreator" class="pill"></span>
+              <span id="petDetailComments" class="pill"></span>
+            </div>
+            <div class="detail-columns">
+              <div class="detail-panel">
+                <h4>评论区</h4>
+                <div id="detailCommentList" class="comment-list"></div>
+                <form id="detailCommentForm" class="comment-form compact-form">
+                  <textarea name="content" placeholder="输入评论内容"></textarea>
+                  <button type="submit">发表评论</button>
+                </form>
+              </div>
+              <div class="detail-panel">
+                <h4>救治/领养/认领联系</h4>
+                <div id="detailContactList" class="contact-list"></div>
+                <form id="detailContactForm" class="contact-form compact-form">
+                  <select name="contact_type">
+                    <option value="rescue">救治联系</option>
+                    <option value="adoption">领养申请</option>
+                    <option value="claim">认领联系</option>
+                  </select>
+                  <input name="phone" placeholder="联系电话">
+                  <textarea name="message" placeholder="留言说明"></textarea>
+                  <button type="submit">提交联系</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
