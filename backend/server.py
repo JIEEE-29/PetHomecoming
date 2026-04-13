@@ -5,10 +5,11 @@ import mimetypes
 import os
 import secrets
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 from hashlib import pbkdf2_hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from PIL import Image, ImageDraw, ImageFont
@@ -16,9 +17,15 @@ from PIL import Image, ImageDraw, ImageFont
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 MODELS_DIR = BASE_DIR / "models"
-DB_PATH = BASE_DIR / "pet_homecoming.db"
+LEGACY_SQLITE_PATH = BASE_DIR / "pet_homecoming.db"
 HOST = "127.0.0.1"
 PORT = 8000
+DB_HOST = os.environ.get("PET_HOME_DB_HOST", "127.0.0.1")
+DB_PORT = int(os.environ.get("PET_HOME_DB_PORT", "3306"))
+DB_USER = os.environ.get("PET_HOME_DB_USER", "root")
+DB_PASSWORD = os.environ.get("PET_HOME_DB_PASSWORD", "")
+DB_NAME = os.environ.get("PET_HOME_DB_NAME", "pet_homecoming")
+DB_CHARSET = "utf8mb4"
 YOLO_CLASS_MAP = {
     "dog": "鐘被",
     "cat": "鐚被",
@@ -42,16 +49,142 @@ YOLO_RUNTIME = {
     "source": os.environ.get("PET_HOME_YOLO_MODEL") or str(MODELS_DIR / "yolov8n.pt"),
     "error": "",
 }
+DB_RUNTIME = {"database_ready": False}
 
 
 def now() -> str:
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def get_db() -> sqlite3.Connection:
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
+def json_safe(value):
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(value, date):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [json_safe(item) for item in value]
+    return value
+
+
+def convert_sql_placeholders(sql: str) -> str:
+    return sql.replace("?", "%s")
+
+
+class MySQLCursorCompat:
+    def __init__(self, raw_cursor):
+        self.raw_cursor = raw_cursor
+
+    def execute(self, sql: str, params: tuple | list | None = None):
+        self.raw_cursor.execute(convert_sql_placeholders(sql), params or ())
+        return self
+
+    def fetchone(self):
+        return self.raw_cursor.fetchone()
+
+    def fetchall(self):
+        return self.raw_cursor.fetchall()
+
+    @property
+    def lastrowid(self) -> int:
+        return self.raw_cursor.lastrowid
+
+    def close(self) -> None:
+        self.raw_cursor.close()
+
+
+class MySQLConnectionCompat:
+    def __init__(self, raw_connection):
+        self.raw_connection = raw_connection
+
+    def execute(self, sql: str, params: tuple | list | None = None) -> MySQLCursorCompat:
+        cursor = self.cursor()
+        cursor.execute(sql, params)
+        return cursor
+
+    def cursor(self) -> MySQLCursorCompat:
+        return MySQLCursorCompat(self.raw_connection.cursor())
+
+    def executescript(self, script: str) -> None:
+        statements = [statement.strip() for statement in script.split(";") if statement.strip()]
+        for statement in statements:
+            cursor = self.cursor()
+            try:
+                cursor.execute(statement)
+            finally:
+                cursor.close()
+
+    def commit(self) -> None:
+        self.raw_connection.commit()
+
+    def rollback(self) -> None:
+        self.raw_connection.rollback()
+
+    def close(self) -> None:
+        self.raw_connection.close()
+
+
+def open_mysql_connection(database: str | None = None):
+    try:
+        import pymysql
+        from pymysql.cursors import DictCursor
+    except ImportError as error:
+        raise RuntimeError("PyMySQL 未安装，请先执行 `pip install -r backend/requirements.txt`。") from error
+
+    options: dict[str, Any] = {
+        "host": DB_HOST,
+        "port": DB_PORT,
+        "user": DB_USER,
+        "password": DB_PASSWORD,
+        "charset": DB_CHARSET,
+        "cursorclass": DictCursor,
+        "autocommit": False,
+    }
+    if database:
+        options["database"] = database
+    try:
+        return pymysql.connect(**options)
+    except pymysql.MySQLError as error:
+        target = database or "<server>"
+        raise RuntimeError(
+            f"MySQL 连接失败：{DB_HOST}:{DB_PORT}/{target}。"
+            "请检查 PET_HOME_DB_HOST、PET_HOME_DB_PORT、PET_HOME_DB_USER、"
+            "PET_HOME_DB_PASSWORD、PET_HOME_DB_NAME 配置。"
+            f"原始错误：{error}"
+        ) from error
+
+
+def ensure_database() -> None:
+    if DB_RUNTIME["database_ready"]:
+        return
+
+    connection = open_mysql_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute(
+            f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` CHARACTER SET {DB_CHARSET} COLLATE utf8mb4_unicode_ci"
+        )
+        connection.commit()
+        DB_RUNTIME["database_ready"] = True
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def get_db() -> MySQLConnectionCompat:
+    ensure_database()
+    return MySQLConnectionCompat(open_mysql_connection(DB_NAME))
+
+
+def is_mysql_integrity_error(error: Exception) -> bool:
+    try:
+        import pymysql
+    except ImportError:
+        return False
+    return isinstance(error, pymysql.err.IntegrityError)
 
 
 def hash_password(password: str, salt: str | None = None) -> str:
@@ -387,74 +520,163 @@ def build_recognition(payload: dict, yolo_result: dict | None = None) -> dict:
     }
 
 
+def mysql_table_has_rows(connection: MySQLConnectionCompat, table_name: str) -> bool:
+    row = connection.execute(f"SELECT 1 AS has_row FROM {table_name} LIMIT 1").fetchone()
+    return bool(row)
+
+
+def migrate_legacy_sqlite_data(connection: MySQLConnectionCompat) -> None:
+    if not LEGACY_SQLITE_PATH.exists():
+        return
+
+    if any(
+        mysql_table_has_rows(connection, table_name)
+        for table_name in ["users", "sessions", "pets", "comments", "contacts"]
+    ):
+        return
+
+    legacy = sqlite3.connect(LEGACY_SQLITE_PATH)
+    legacy.row_factory = sqlite3.Row
+
+    table_columns = {
+        "users": [
+            "id",
+            "username",
+            "password_hash",
+            "full_name",
+            "phone",
+            "email",
+            "address",
+            "id_card",
+            "role",
+            "review_status",
+            "review_note",
+            "created_at",
+        ],
+        "sessions": ["token", "user_id", "created_at"],
+        "pets": [
+            "id",
+            "creator_id",
+            "name",
+            "manual_category",
+            "recognized_category",
+            "breed",
+            "age_desc",
+            "status",
+            "recognized_state",
+            "found_location",
+            "description",
+            "health_note",
+            "contact_phone",
+            "adoption_status",
+            "recognition_hint",
+            "vision_report_json",
+            "recognition_json",
+            "image_path",
+            "processed_image_path",
+            "created_at",
+        ],
+        "comments": ["id", "pet_id", "user_id", "content", "created_at"],
+        "contacts": ["id", "pet_id", "user_id", "contact_type", "phone", "message", "status", "created_at"],
+    }
+
+    try:
+        cursor = connection.cursor()
+        for table_name, columns in table_columns.items():
+            rows = legacy.execute(f"SELECT {', '.join(columns)} FROM {table_name}").fetchall()
+            if not rows:
+                continue
+            placeholders = ", ".join(["%s"] * len(columns))
+            sql = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders})"
+            for row in rows:
+                cursor.execute(sql, tuple(row[column] for column in columns))
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        cursor.close()
+        legacy.close()
+
+
 def init_db() -> None:
+    ensure_database()
     connection = get_db()
     connection.executescript(
         """
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            full_name TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            email TEXT,
-            address TEXT,
-            id_card TEXT,
-            role TEXT NOT NULL DEFAULT 'user',
-            review_status TEXT NOT NULL DEFAULT 'pending',
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            username VARCHAR(191) NOT NULL UNIQUE,
+            password_hash VARCHAR(255) NOT NULL,
+            full_name VARCHAR(191) NOT NULL,
+            phone VARCHAR(64) NOT NULL,
+            email VARCHAR(191),
+            address VARCHAR(255),
+            id_card VARCHAR(191),
+            role VARCHAR(32) NOT NULL DEFAULT 'user',
+            review_status VARCHAR(32) NOT NULL DEFAULT 'pending',
             review_note TEXT,
-            created_at TEXT NOT NULL
+            created_at DATETIME NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS sessions (
-            token TEXT PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            created_at TEXT NOT NULL
+            token VARCHAR(64) PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            created_at DATETIME NOT NULL,
+            INDEX idx_sessions_user_id (user_id)
         );
 
         CREATE TABLE IF NOT EXISTS pets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            creator_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            manual_category TEXT,
-            recognized_category TEXT,
-            breed TEXT,
-            age_desc TEXT,
-            status TEXT NOT NULL,
-            recognized_state TEXT,
-            found_location TEXT,
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            creator_id BIGINT NOT NULL,
+            name VARCHAR(191) NOT NULL,
+            manual_category VARCHAR(64),
+            recognized_category VARCHAR(64),
+            breed VARCHAR(191),
+            age_desc VARCHAR(191),
+            status VARCHAR(64) NOT NULL,
+            recognized_state VARCHAR(64),
+            found_location VARCHAR(255),
             description TEXT,
             health_note TEXT,
-            contact_phone TEXT NOT NULL,
+            contact_phone VARCHAR(64) NOT NULL,
             adoption_status TEXT,
             recognition_hint TEXT,
-            vision_report_json TEXT,
-            recognition_json TEXT,
-            image_path TEXT,
-            processed_image_path TEXT,
-            created_at TEXT NOT NULL
+            vision_report_json LONGTEXT,
+            recognition_json LONGTEXT,
+            image_path VARCHAR(255),
+            processed_image_path VARCHAR(255),
+            created_at DATETIME NOT NULL,
+            INDEX idx_pets_creator_id (creator_id),
+            INDEX idx_pets_created_at (created_at)
         );
 
         CREATE TABLE IF NOT EXISTS comments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pet_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            pet_id BIGINT NOT NULL,
+            user_id BIGINT NOT NULL,
             content TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at DATETIME NOT NULL,
+            INDEX idx_comments_pet_id (pet_id),
+            INDEX idx_comments_user_id (user_id)
         );
 
         CREATE TABLE IF NOT EXISTS contacts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pet_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            contact_type TEXT NOT NULL,
-            phone TEXT NOT NULL,
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            pet_id BIGINT NOT NULL,
+            user_id BIGINT NOT NULL,
+            contact_type VARCHAR(32) NOT NULL,
+            phone VARCHAR(64) NOT NULL,
             message TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'open',
-            created_at TEXT NOT NULL
+            status VARCHAR(32) NOT NULL DEFAULT 'open',
+            created_at DATETIME NOT NULL,
+            INDEX idx_contacts_pet_id (pet_id),
+            INDEX idx_contacts_user_id (user_id)
         );
         """
     )
+
+    migrate_legacy_sqlite_data(connection)
 
     admin = connection.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
     if not admin:
@@ -521,7 +743,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_common_headers("application/json; charset=utf-8")
         self.end_headers()
-        self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+        self.wfile.write(json.dumps(json_safe(payload), ensure_ascii=False).encode("utf-8"))
 
     def read_json(self) -> dict:
         content_length = int(self.headers.get("Content-Length", 0))
@@ -538,7 +760,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(target.read_bytes())
 
-    def current_user(self, required: bool = False) -> sqlite3.Row | None:
+    def current_user(self, required: bool = False) -> dict | None:
         token = self.headers.get("Authorization", "").replace("Bearer ", "", 1).strip()
         if not token:
             if required:
@@ -560,7 +782,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             self.write_json(401, {"error": "登录状态已失效。"})
         return user
 
-    def require_admin(self) -> sqlite3.Row | None:
+    def require_admin(self) -> dict | None:
         user = self.current_user(required=True)
         if not user:
             return None
@@ -569,10 +791,10 @@ class ApiHandler(BaseHTTPRequestHandler):
             return None
         return user
 
-    def serialize_user(self, row: sqlite3.Row) -> dict:
+    def serialize_user(self, row: dict) -> dict:
         return {key: row[key] for key in row.keys() if key != "password_hash"}
 
-    def serialize_pet(self, row: sqlite3.Row) -> dict:
+    def serialize_pet(self, row: dict) -> dict:
         item = dict(row)
         item["recognition"] = json.loads(row["recognition_json"] or "{}")
         item["vision_report"] = json.loads(row["vision_report_json"] or "{}")
@@ -745,10 +967,12 @@ class ApiHandler(BaseHTTPRequestHandler):
                     ),
                 )
                 connection.commit()
-            except sqlite3.IntegrityError:
+            except Exception as error:
                 connection.close()
-                self.write_json(409, {"error": "用户名已存在。"})
-                return
+                if is_mysql_integrity_error(error):
+                    self.write_json(409, {"error": "用户名已存在。"})
+                    return
+                raise
             connection.close()
             self.write_json(201, {"message": "注册成功，请等待管理员审核。"})
             return

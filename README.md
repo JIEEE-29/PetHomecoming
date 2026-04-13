@@ -73,7 +73,8 @@
 
 - 前端：HTML + CSS + JavaScript
 - 后端：Python 标准库 `ThreadingHTTPServer`
-- 数据库：SQLite
+- 数据库：MySQL 8.0
+- 数据访问：PyMySQL
 - 图片处理：Pillow
 - 目标识别：Ultralytics YOLO
 
@@ -84,7 +85,7 @@ pet-homecoming/
 ├─ backend/
 │  ├─ server.py
 │  ├─ requirements.txt
-│  ├─ pet_homecoming.db
+│  ├─ pet_homecoming.db  # 历史 SQLite 数据源，首次启动可迁移
 │  ├─ models/
 │  └─ uploads/
 ├─ frontend/
@@ -106,6 +107,18 @@ pet-homecoming/
 
 ### 1. 启动后端
 
+先按实际 MySQL 环境配置连接参数：
+
+```powershell
+$env:PET_HOME_DB_HOST="127.0.0.1"
+$env:PET_HOME_DB_PORT="3306"
+$env:PET_HOME_DB_USER="你的MySQL用户名"
+$env:PET_HOME_DB_PASSWORD="你的MySQL密码"
+$env:PET_HOME_DB_NAME="pet_homecoming"
+```
+
+然后启动后端：
+
 ```powershell
 cd E:\Codex\pet-homecoming\backend
 python server.py
@@ -114,6 +127,24 @@ python server.py
 启动成功后可访问：
 
 - <http://127.0.0.1:8000/api/health>
+
+说明：
+
+- 后端现在默认使用 MySQL，不再直接把 SQLite 作为运行时数据库
+- 若 `backend/pet_homecoming.db` 存在，且 MySQL 是空库，系统首次启动时会自动尝试迁移旧 SQLite 数据
+- MySQL 连接依赖 `PyMySQL`，已写入 `backend/requirements.txt`
+
+### 1.1 数据迁移说明
+
+- 历史数据文件仍保留在 `backend/pet_homecoming.db`
+- 当前运行时数据库为 MySQL
+- 系统首次启动时会自动尝试迁移以下表数据：
+  - `users`
+  - `sessions`
+  - `pets`
+  - `comments`
+  - `contacts`
+- 迁移完成后，后续接口读写都以 MySQL 为准
 
 ### 2. 启动前端
 
@@ -174,5 +205,5 @@ python -m http.server 5173
 - 增加更完整的 JWT 鉴权与刷新机制
 - 将 YOLO 扩展为检测加品种分类的两阶段模型
 - 增加图片相似度匹配和走失宠物比对能力
-- 将 SQLite 升级为 MySQL 或 PostgreSQL
+- 将 MySQL 进一步升级为 PostgreSQL 或更完整的分布式架构
 - 增加操作日志、通知提醒和统计报表
